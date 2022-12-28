@@ -1,3 +1,4 @@
+dist/
 /credentials
 /certs/*
 !/certs/README.md
