@@ -60,6 +60,11 @@ const config = {
     namespace: process.env.GCP_NAMESPACE || 'sms-wallet-server'
   },
 
+  mongo: {
+    uri: process.env.MONGO_URI,
+    name: process.env.MONGO_DATABASE
+  },
+
   twilio: {
     sid: process.env.TWILIO_ACCOUNT_SID,
     token: process.env.TWILIO_AUTH_TOKEN,
