@@ -1,12 +1,7 @@
-const { v1: uuidGenerator } = require('uuid')
-const config = require('../../config')
-const { GenericBuilder } = require('./generic')
-const UserPrototype = GenericBuilder('user')
 export const User = ({
-  ...UserPrototype,
+  ...global.mongo.user,
   addNew: async ({ uuid, phone, ekey, eseed, address }: UserType) => {
-    uuid = uuid || uuidGenerator()
-    const [u] = await UserPrototype.find(['phone', phone])
+    const u = await global.mongo.user.getByPhone(phone)
     address = address.toLowerCase()
     if (u) {
       return false
@@ -18,15 +13,7 @@ export const User = ({
       eseed,
       address
     }
-    return UserPrototype.add(uuid, details)
-  },
-  findByPhone: async ({ phone }: {phone: string}) => {
-    const [u] = await UserPrototype.find(['phone', phone])
-    return u
-  },
-  findByAddress: async ({ address }: {address: string}) => {
-    const [u] = await UserPrototype.find(['address', address.toLowerCase()])
-    return u
+    return global.mongo.user.create(details)
   },
 })
 
@@ -39,3 +26,5 @@ export type UserType = {
   created?: Date,
   updated?: Date,
 }
+
+export default User

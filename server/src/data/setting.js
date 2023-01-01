@@ -1,6 +1,5 @@
 const { pick } = require('lodash')
-const { GenericBuilder } = require('./generic')
-const SettingPrototype = GenericBuilder('setting')
+const SettingPrototype = global.mongo.setting
 const SettingKeys = ['hide']
 const Setting = ({
   ...SettingPrototype,

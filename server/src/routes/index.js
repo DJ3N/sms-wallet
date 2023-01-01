@@ -8,12 +8,12 @@ const Cache = new NodeCache()
 const { phone } = require('phone')
 const Twilio = require('twilio')(config.twilio.sid, config.twilio.token)
 const utils = require('../utils')
-const { User } = require('../src/data/user')
+const { User } = require('../data/user')
 const { isEqual, pick } = require('lodash')
 const w3utils = require('../w3utils')
 const stringify = require('json-stable-stringify')
-const { Setting } = require('../src/data/setting')
-const { Request } = require('../src/data/request')
+const { Setting } = require('../data/setting')
+const { Request } = require('../data/request.js')
 const { partialReqCheck, reqCheck, checkExistence, hasUserSignedBody } = require('./middleware')
 
 router.get('/health', async (req, res) => {
@@ -78,7 +78,7 @@ router.post('/verify', reqCheck, checkExistence, async (req, res) => {
   if (recoveredAddress.toLowerCase() !== address) {
     return res.status(StatusCodes.BAD_REQUEST).json({ error: 'signature does not match address' })
   }
-  const u = await User.addNew({ phone: phoneNumber, ekey, eseed, address })
+  const u = await global.mongo.user.create({ phone: phoneNumber, ekey, eseed, address })
   if (!u) {
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'failed to signup, please try again in 120 seconds' })
   }

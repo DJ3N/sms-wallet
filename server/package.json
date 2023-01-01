@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "main": "app.js",
+  "type": "commonjs",
   "scripts": {
     "start": "tsc && node ./dist/server/bin/run.js",
     "start:dev": "DEBUG=true nodemon ./bin/run.js",

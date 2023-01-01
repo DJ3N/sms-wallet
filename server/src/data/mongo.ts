@@ -1,6 +1,8 @@
 import {Db, Filter, MongoClient} from 'mongodb';
-import config from '../../config';
+import config from '../config';
 import {UserType} from "./user";
+import { randomUUID } from 'crypto';
+import {RequestType} from "./request";
 
 export default class MongoHelper {
     static URI: string = config.mongo.uri || ''
@@ -9,7 +11,7 @@ export default class MongoHelper {
     private client: MongoClient | undefined
     private db: Db | undefined
 
-    private _user: UserDb | undefined
+    private subsets: Map<string, GenericDb<MongoObjectType>> = new Map()
 
     constructor() {
         if (!MongoHelper.URI) {
@@ -30,10 +32,6 @@ export default class MongoHelper {
         return !!(this.db && this.client)
     }
 
-    async initCollections() {
-
-    }
-
     async connect({maxPoolSize}: {maxPoolSize?: number}) {
         this.client = new MongoClient(MongoHelper.URI, {
             maxPoolSize: maxPoolSize || 15,
@@ -51,11 +49,28 @@ export default class MongoHelper {
         return await this.client.close()
     }
 
-    get user() {
+    async initCollections() {
+        const ps: Promise<any>[] = []
+        this.subsets.forEach((v) => {
+            ps.push(v.initCollection())
+        });
+        return Promise.all(ps);
+    }
+
+    private getSubset(k: string, SubsetInitializer: any) {
         if (!this.db) throw new DbError(DbError.Type.UNINITIALIZED, 'Database must be connected first')
-        if (this._user) return this._user
-        this._user = new UserDb(this.db)
-        return this._user
+        if (!this.subsets.has(k)) {
+            this.subsets.set(k, new SubsetInitializer(this.db))
+        }
+        return this.subsets.get(k)
+    }
+
+    get user() {
+        return this.getSubset('users', UserDb) as UserDb
+    }
+
+    get request() {
+        return this.getSubset('requests', RequestDb) as RequestDb
     }
 }
 
@@ -73,7 +88,7 @@ type MongoObjectType = {
     uuid: string
 }
 
-class GenericDb<T extends MongoObjectType> {
+export class GenericDb<T extends MongoObjectType> {
     protected readonly TABLE: string = ''
     private db: Db
 
@@ -82,6 +97,7 @@ class GenericDb<T extends MongoObjectType> {
     }
 
     get collection() {
+        if (!this.TABLE) throw new DbError(DbError.Type.INVALID_COLLECTION, `Invalid collection "${this.TABLE}", did you forget to override TABLE?`)
         return this.db.collection(this.TABLE)
     }
 
@@ -95,8 +111,8 @@ class GenericDb<T extends MongoObjectType> {
         return r
     }
 
-    async getByUuid(uuid: string) {
-        // @ts-ignore - extends ensure this is always valid
+    async getByUUID(uuid: string) {
+        // @ts-ignore - extends restriction on gen type ensures this is always valid
         return this.get({uuid})
     }
 
@@ -106,10 +122,11 @@ class GenericDb<T extends MongoObjectType> {
         return await rs.toArray()
     }
 
-    async create(o: T) {
+    async create(o: Partial<T>) {
         const now = new Date()
-        const sanitized = {...o, _id: undefined, created: now, updated: now}
-        return this.collection.insertOne(sanitized)
+        const sanitized = {uuid: this.generateUUID(), ...o, _id: undefined, created: now, updated: now}
+        await this.collection.insertOne(sanitized)
+        return sanitized.uuid
     }
 
     protected async update(filter: Filter<Partial<T>>, o: Partial<T>) {
@@ -117,25 +134,25 @@ class GenericDb<T extends MongoObjectType> {
         return this.collection.updateOne(filter, sanitized)
     }
 
-    async updateByUuid(uuid: string, o: Partial<T>) {
-        // @ts-ignore - extends ensure this is always valid
+    async updateByUUID(uuid: string, o: Partial<T>) {
+        // @ts-ignore - extends restriction on gen type ensures this is always valid
         return this.update({uuid}, o)
     }
 
     protected async remove(filter: Filter<Partial<T>>) {
         return this.collection.deleteOne(filter)
     }
+
+    protected generateUUID() {
+        return randomUUID()
+    }
 }
 
 class UserDb extends GenericDb<UserType> {
     protected readonly TABLE = 'users'
 
-    constructor(db: Db) {
-        super(db)
-    }
-
     async initCollection() {
-        await this.initCollection()
+        await super.initCollection()
         await this.collection.createIndex({phone: 1})
         await this.collection.createIndex({address: 1})
     }
@@ -149,18 +166,35 @@ class UserDb extends GenericDb<UserType> {
     }
 }
 
-class DbError {
-    private code: string
-    private message: string
-    static Type: {MISSING_REQUIRED_ENV_VAR: string; UNINITIALIZED: string; ALREADY_EXISTS: string}
+class RequestDb extends GenericDb<RequestType> {
+    protected readonly TABLE = 'requests'
 
-    constructor(code: string, message: string) {
+    async initCollection() {
+        await super.initCollection()
+        await this.collection.createIndex({address: 1})
+        await this.collection.createIndex({hash: 1})
+        await this.collection.createIndex({txHash: 1})
+    }
+
+    async complete(uuid: string, txHash: string) {
+        return this.updateByUUID(uuid, {txHash})
+    }
+}
+
+enum DbErrorCode {
+    MISSING_REQUIRED_ENV_VAR = 'ERR_MISSING_REQUIRED_ENV_VAR',
+    UNINITIALIZED = 'ERR_UNINITIALIZED',
+    ALREADY_EXISTS = 'ERR_ALREADY_EXISTS',
+    INVALID_COLLECTION = 'ERR_INVALID_COLLECTION',
+}
+
+class DbError {
+    private code: DbErrorCode
+    private message: string
+    static Type = DbErrorCode
+
+    constructor(code: DbErrorCode, message: string) {
         this.code = code
         this.message = message
     }
-}
-DbError.Type = {
-    MISSING_REQUIRED_ENV_VAR: 'ERR_MISSING_REQUIRED_ENV_VAR',
-    UNINITIALIZED: 'ERR_UNINITIALIZED',
-    ALREADY_EXISTS: 'ERR_ALREADY_EXISTS',
 }

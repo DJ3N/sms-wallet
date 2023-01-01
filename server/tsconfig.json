@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "es6",
+    "target": "ES6",
     "module": "commonjs",
     "sourceMap": true,
     "outDir": "./dist",
@@ -9,6 +9,7 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "allowJs": true,
-    "checkJs": false
-  }
+    "checkJs": false,
+  },
+  "include": ["./src/*", "./src/**/*", "./bin/*", "*"]
 }

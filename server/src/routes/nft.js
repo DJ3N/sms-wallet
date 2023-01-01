@@ -1,9 +1,9 @@
 const express = require('express')
 const w3utils = require('../w3utils')
 const { StatusCodes } = require('http-status-codes')
-const { NFT } = require('../src/data/nft')
+const { NFT } = require('../data/nft')
 const router = express.Router()
-const sharedUtils = require('../../shared/utils')
+const sharedUtils = require('../../../shared/utils')
 const { hasUserSignedBody } = require('./middleware')
 router.post('/track', hasUserSignedBody, async (req, res) => {
   const { body: nfts } = req.body

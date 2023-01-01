@@ -6,9 +6,9 @@ const express = require('express')
 const path = require('path')
 const cookieParser = require('cookie-parser')
 const logger = require('morgan')
-const config = require('./config')
-const _index = require('./routes/index')
-const _nft = require('./routes/nft')
+const config = require('./src/config')
+const _index = require('./src/routes/index')
+const _nft = require('./src/routes/nft')
 const bodyParser = require('body-parser')
 const app = express()
 const https = require('https')
@@ -23,7 +23,7 @@ app.locals.ENV_DEVELOPMENT = env === 'development'
 app.set('trust proxy', true)
 
 // console.log('config', config)
-let httpServer, httpsServer
+let httpServer
 
 const httpsOptions = {
   key: fs.readFileSync(config.https.key),
@@ -44,7 +44,7 @@ if (config.https.only) {
   httpServer = http.createServer(app)
 }
 
-httpsServer = https.createServer(httpsOptions, app)
+const httpsServer = https.createServer(httpsOptions, app)
 
 app.use(Fingerprint({
   parameters: [

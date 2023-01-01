@@ -1,6 +1,6 @@
 const { phone } = require('phone')
 const { StatusCodes } = require('http-status-codes')
-const { User } = require('../src/data/user')
+const { User } = require('../data/user')
 const stringify = require('json-stable-stringify')
 const w3utils = require('../w3utils')
 

@@ -1,7 +1,5 @@
-const { v1: uuid } = require('uuid')
-const config = require('../../config')
-const { GenericBuilder } = require('./generic')
-const NFTPrototype = GenericBuilder('nft')
+const NFTPrototype = {} // TODO: Fix NFTs
+
 const NFT = ({
   ...NFTPrototype,
   track: async ({ address, contractAddress, tokenId, tokenType }) => {
