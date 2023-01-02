@@ -1,8 +1,9 @@
 import {Db, Filter, MongoClient} from 'mongodb';
 import config from '../config';
-import {UserType} from "./user";
+import UserType from "./user";
 import { randomUUID } from 'crypto';
-import {RequestType} from "./request";
+import RequestType from "./request";
+import PreferenceType from "./setting";
 
 export default class MongoHelper {
     static URI: string = config.mongo.uri || ''
@@ -72,6 +73,10 @@ export default class MongoHelper {
     get request() {
         return this.getSubset('requests', RequestDb) as RequestDb
     }
+
+    get preference() {
+        return this.getSubset('preferences', PreferenceDb) as PreferenceDb
+    }
 }
 
 export async function initializeMongo(maxPoolSize?: number) {
@@ -85,7 +90,7 @@ export async function initializeMongo(maxPoolSize?: number) {
 }
 
 type MongoObjectType = {
-    uuid: string
+    uuid?: string
 }
 
 export class GenericDb<T extends MongoObjectType> {
@@ -122,7 +127,7 @@ export class GenericDb<T extends MongoObjectType> {
         return await rs.toArray()
     }
 
-    async create(o: Partial<T>) {
+    async create(o: T) {
         const now = new Date()
         const sanitized = {uuid: this.generateUUID(), ...o, _id: undefined, created: now, updated: now}
         await this.collection.insertOne(sanitized)
@@ -178,6 +183,19 @@ class RequestDb extends GenericDb<RequestType> {
 
     async complete(uuid: string, txHash: string) {
         return this.updateByUUID(uuid, {txHash})
+    }
+}
+
+class PreferenceDb extends GenericDb<PreferenceType> {
+    protected readonly TABLE = 'preferences'
+
+    async initCollection(): Promise<void> {
+        await super.initCollection()
+        await this.collection.createIndex({user: 1}, {unique: true})
+    }
+
+    async getByUser(userUUID: string) {
+        return this.get({user: userUUID})
     }
 }
 

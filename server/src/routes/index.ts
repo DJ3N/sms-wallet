@@ -1,3 +1,5 @@
+import TxRequest from '../data/request'
+import { Request, Response } from 'express'
 const express = require('express')
 const config = require('../config')
 const router = express.Router()
@@ -13,15 +15,14 @@ const { isEqual, pick } = require('lodash')
 const w3utils = require('../w3utils')
 const stringify = require('json-stable-stringify')
 const { Setting } = require('../data/setting')
-const { Request } = require('../data/request.js')
 const { partialReqCheck, reqCheck, checkExistence, hasUserSignedBody } = require('./middleware')
 
-router.get('/health', async (req, res) => {
+router.get('/health', async (req: Request, res: Response) => {
   Logger.log('[/health]', req.fingerprint)
   res.send('OK').end()
 })
 
-router.post('/signup', reqCheck, checkExistence, async (req, res) => {
+router.post('/signup', reqCheck, checkExistence, async (req: Request, res: Response) => {
   const { phoneNumber, eseed, ekey, address } = req.processedBody
 
   const seed = utils.keccak(`${config.otp.salt}${eseed}`)
@@ -41,13 +42,13 @@ router.post('/signup', reqCheck, checkExistence, async (req, res) => {
     })
     console.log('[Text]', code, message)
     res.json({ hash })
-  } catch (ex) {
+  } catch (ex: any) {
     console.error(ex)
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: ex.toString() })
   }
 })
 
-router.post('/verify', reqCheck, checkExistence, async (req, res) => {
+router.post('/verify', reqCheck, checkExistence, async (req: Request, res: Response) => {
   const { phoneNumber, eseed, ekey, address } = req.processedBody
   const { code, signature } = req.body
   const seed = utils.keccak(`${config.otp.salt}${eseed}`)
@@ -78,7 +79,7 @@ router.post('/verify', reqCheck, checkExistence, async (req, res) => {
   if (recoveredAddress.toLowerCase() !== address) {
     return res.status(StatusCodes.BAD_REQUEST).json({ error: 'signature does not match address' })
   }
-  const u = await global.mongo.user.create({ phone: phoneNumber, ekey, eseed, address })
+  const u = await User.create(new User({ phone: phoneNumber, ekey, eseed, address }))
   if (!u) {
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'failed to signup, please try again in 120 seconds' })
   }
@@ -86,7 +87,7 @@ router.post('/verify', reqCheck, checkExistence, async (req, res) => {
   res.json({ success: true })
 })
 
-router.post('/restore', partialReqCheck, async (req, res) => {
+router.post('/restore', partialReqCheck, async (req: Request, res: Response) => {
   const { phoneNumber, eseed } = req.processedBody
   const u = await User.findByPhone({ phone: phoneNumber })
   if (!u) {
@@ -105,13 +106,13 @@ router.post('/restore', partialReqCheck, async (req, res) => {
     })
     console.log('[Text][Restore]', code, message)
     res.json({ success: true })
-  } catch (ex) {
+  } catch (ex: any) {
     console.error(ex)
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: ex.toString() })
   }
 })
 
-router.post('/restore-verify', partialReqCheck, async (req, res) => {
+router.post('/restore-verify', partialReqCheck, async (req: Request, res: Response) => {
   const { phoneNumber, eseed } = req.processedBody
   const { code } = req.body
   const u = await User.findByPhone({ phone: phoneNumber })
@@ -134,8 +135,8 @@ router.post('/restore-verify', partialReqCheck, async (req, res) => {
   res.json({ ekey: u.ekey, address: u.address })
 })
 
-// allows an existing user to lookup another user's address by their phone number, iff the phone number exists and the target user does not choose to hide its phone-address mapping (under `hide` parameter in settings)
-router.post('/lookup', async (req, res) => {
+// allows an existing user to look up another user's address by their phone number, iff the phone number exists and the target user does not choose to hide its phone-address mapping (under `hide` parameter in settings)
+router.post('/lookup', async (req: Request, res: Response) => {
   const { address, signature, destPhone } = req.body
   if (!address || !signature || !destPhone) {
     return res.status(StatusCodes.BAD_REQUEST).json({ error: 'require address, signature, destPhone' })
@@ -166,22 +167,27 @@ router.post('/lookup', async (req, res) => {
 
 // this allows a user to retrieve or update its current config. For retrieval, just pass in an empty object for `newConfig`
 // we may want to impose stronger security requirement on this, once we have some sensitive configurations. Right now the only configuration is `hide`, which determines whether another user can look up this user's address by its phone number.
-router.post('/settings', hasUserSignedBody, async (req, res) => {
-  const { body } = req.body
-  const filteredNewSetting = pick(body, ['hide'])
-  const u = req.user
-  const isUpdate = Object.keys(filteredNewSetting).length >= 0
-  if (isUpdate) {
-    const updatedSetting = await Setting.update(u.id, { ...filteredNewSetting })
-    return res.json(updatedSetting)
+router.post('/settings', hasUserSignedBody, async (req: Request, res: Response) => {
+  try {
+    const {body} = req.body
+    const {hide} = body
+    const u = req.user
+    const pref = Setting.get(u)
+    if (pref.searchByPhone === hide) {
+      return res.status(200).send()
+    }
+    pref.searchByPhone = hide
+    await Setting.update(pref)
+    return res.status(200).send()
+  } catch (e) {
+    console.error('/settings', e)
+    return res.status(500).send()
   }
-  const s = await Setting.get(u.id)
-  return res.json({ setting: s })
 })
 
-router.post('/request', async (req, res) => {
+router.post('/request', async (req: Request, res: Response) => {
   const { request, address: inputAddress, phone: unvalidatedPhone } = req.body
-  const { isValid, phoneNumber } = unvalidatedPhone ? phone(unvalidatedPhone) : {}
+  const { isValid, phoneNumber } = unvalidatedPhone ? phone(unvalidatedPhone) : {isValid: false, phoneNumber: ''}
   if (!inputAddress && !isValid) {
     return res.status(StatusCodes.BAD_REQUEST).json({ error: 'need either address or phone' })
   }
@@ -210,7 +216,7 @@ router.post('/request', async (req, res) => {
   if (Object.values(fRequest).filter(e => typeof e !== 'string').length > 0) {
     return res.status(StatusCodes.BAD_REQUEST).json({ error: 'bad request format' })
   }
-  const { id, hash } = await Request.add({ request: fRequest, address: user.address })
+  const { uuid: id, hash } = await TxRequest.add({ ...fRequest, address: user.address })
   const caller = fRequest.caller || 'An app'
   const reason = fRequest.comment ? ` (${fRequest.comment})` : ''
   try {
@@ -221,13 +227,13 @@ router.post('/request', async (req, res) => {
     })
     console.log('[Request][Text]', message)
     return res.json({ id, hash })
-  } catch (ex) {
+  } catch (ex: any) {
     console.error(ex)
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: ex.toString() })
   }
 })
 
-router.post('/request-view', async (req, res) => {
+router.post('/request-view', async (req: Request, res: Response) => {
   const { id, signature, address } = req.body
   if (!id || !signature || !address) {
     return res.status(StatusCodes.BAD_REQUEST).json({ error: 'need id, signature, address' })
@@ -239,7 +245,7 @@ router.post('/request-view', async (req, res) => {
   if (!w3utils.isSameAddress(recoveredAddress, address)) {
     return res.status(StatusCodes.BAD_REQUEST).json({ error: 'invalid signature' })
   }
-  const r = await Request.get(id)
+  const r = await TxRequest.get(id)
   if (!r) {
     return res.status(StatusCodes.NOT_FOUND).json({ error: 'transaction request not found' })
   }
@@ -255,13 +261,13 @@ router.post('/request-view', async (req, res) => {
     const { hash, requestStr } = r
     const request = JSON.parse(requestStr)
     return res.json({ request, hash, phone: u.phone })
-  } catch (ex) {
+  } catch (ex: any) {
     console.error(ex)
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: ex.toString() })
   }
 })
 
-router.post('/request-complete', async (req, res) => {
+router.post('/request-complete', async (req: Request, res: Response) => {
   const { id, txHash, signature, address } = req.body
   if (!id || !signature || !address) {
     return res.status(StatusCodes.BAD_REQUEST).json({ error: 'need id, signature, address' })
@@ -274,7 +280,7 @@ router.post('/request-complete', async (req, res) => {
   if (!w3utils.isSameAddress(recoveredAddress, address)) {
     return res.status(StatusCodes.BAD_REQUEST).json({ error: 'invalid signature' })
   }
-  const r = await Request.get(id)
+  const r = await TxRequest.get(id)
   if (!r) {
     return res.status(StatusCodes.NOT_FOUND).json({ error: 'transaction request not found' })
   }
@@ -285,9 +291,9 @@ router.post('/request-complete', async (req, res) => {
     return res.status(StatusCodes.UNAUTHORIZED).json({ error: 'transaction belongs to different address' })
   }
   try {
-    await Request.complete({ id, txHash })
+    await TxRequest.complete({ id, txHash })
     return res.json({ success: true })
-  } catch (ex) {
+  } catch (ex: any) {
     console.error(ex)
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: ex.toString() })
   }

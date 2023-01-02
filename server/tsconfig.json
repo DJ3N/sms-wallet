@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "experimentalDecorators": true,
     "target": "ES6",
     "module": "commonjs",
     "sourceMap": true,
@@ -9,7 +10,7 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "allowJs": true,
-    "checkJs": false,
+    "checkJs": false
   },
   "include": ["./src/*", "./src/**/*", "./bin/*", "*"]
 }

@@ -1,26 +1,37 @@
-const utils = require('../utils')
-const stringify = require('json-stable-stringify')
-const RequestPrototype = global.mongo.request
+import GenericDbModel from './generic-db-model'
+import {deprecate} from "util";
 
-export const Request = ({
-  ...RequestPrototype,
-  add: async ({ request, address }: {request: any, address: string}) => {
-    const requestStr = stringify(request)
-    const hash = utils.hexView(utils.keccak(requestStr))
-    const uuid = global.mongo.request.create({ txHash: '', hash, requestStr, address })
-    return { id: uuid, hash }
-  },
-  complete: async ({ id, txHash }: {id: string, txHash: string}) => {
-    return global.mongo.request.complete(id, txHash)
-  },
-})
+export default class Request extends GenericDbModel<Request> {
+  public txHash?: string
+  public requestStr: string
+  public address: string
+  public hash: string
 
-export type RequestType = {
-  uuid: string,
-  txHash?: string,
-  requestStr: string,
-  address: string,
-  hash: string,
+  constructor(o: Request) {
+    super(o)
+    this.txHash = o.txHash
+    this.requestStr = o.requestStr
+    this.address = o.address
+    this.hash = o.hash
+  }
+
+  static async get(uuid: string) {
+    return this.getWrap<Request>(Request, global.mongo.request.getByUUID, uuid)
+  }
+
+  // REFACTOR: Remove references to this and replace with "create" for consistency
+  static async add(o: Request) {
+    return this.create(o)
+  }
+
+  static async create(o: Request) {
+    const r = new Request(o)
+    await global.mongo.request.create(r)
+    return r
+  }
+
+  static async complete({ id, txHash }: {id: string, txHash: string}) {
+    global.mongo.request.complete(id, txHash)
+    return
+  }
 }
-
-export default Request
