@@ -14,7 +14,7 @@ const { User } = require('../data/user')
 const { isEqual, pick } = require('lodash')
 const w3utils = require('../w3utils')
 const stringify = require('json-stable-stringify')
-const { Setting } = require('../data/setting')
+const Setting = require('../data/setting')
 const { partialReqCheck, reqCheck, checkExistence, hasUserSignedBody } = require('./middleware')
 
 router.get('/health', async (req: Request, res: Response) => {
@@ -171,8 +171,10 @@ router.post('/settings', hasUserSignedBody, async (req: Request, res: Response) 
   try {
     const {body} = req.body
     const {hide} = body
+
     const u = req.user
-    const pref = Setting.get(u)
+    if (!u || !u.uuid) return res.status(403).send()
+    const pref = Setting.getByUser(u.uuid)
     if (pref.searchByPhone === hide) {
       return res.status(200).send()
     }
